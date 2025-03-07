@@ -36,7 +36,8 @@ from resources.lib.gamestream import GameStreamServer
 from resources.lib import crypto, helpers
 
 logger = logging.getLogger(__name__)
-        
+
+
 class GameStreamCandidate(ROMCandidateABC):
     
     def __init__(self, game_data):
@@ -64,22 +65,23 @@ class GameStreamCandidate(ROMCandidateABC):
     
     def get_name(self):
         return self.game_data['AppTitle']
-    
+
+
 class NvidiaStreamScanner(RomScannerStrategy):
     
     # --------------------------------------------------------------------------------------------
     # Core methods
     # --------------------------------------------------------------------------------------------
-    def get_name(self) -> str: return 'Nvidia Gamestream scanner'
+    def get_name(self) -> str:
+        return 'Nvidia Gamestream scanner'
     
-    def get_scanner_addon_id(self) -> str: 
+    def get_scanner_addon_id(self) -> str:
         addon_id = kodi.get_addon_id()
         return addon_id
             
     def load_settings(self):
         super().load_settings()
-        if "selected_connection" in self.scanner_settings and \
-            self.scanner_settings["selected_connection"]:
+        if "selected_connection" in self.scanner_settings and self.scanner_settings["selected_connection"]:
             connection_info_file = io.FileName(self.scanner_settings["selected_connection"])
             logging.info(f"Loading settings from {connection_info_file.getPath()}")
             self.connection_info = connection_info_file.readJson()
@@ -90,7 +92,7 @@ class NvidiaStreamScanner(RomScannerStrategy):
         logging.debug(f'Has PyCrypto: "{crypto.UTILS_PYCRYPTO_AVAILABLE}"')
         logging.debug(f'Has OpenSSL: "{crypto.UTILS_OPENSSL_AVAILABLE}"')
      
-        info_txt  = ('To pair with your Gamestream Computer we need to make use of valid certificates.\n'
+        info_txt = ('To pair with your Gamestream Computer we need to make use of valid certificates.\n'
                     'Depending on OS and libraries we might not be able to create certificates directly from within Kodi. '
                     'You can always create them manually with external tools/websites.\n'
                     'Please read the documentation or wiki for details how to create them if needed.')
@@ -101,8 +103,9 @@ class NvidiaStreamScanner(RomScannerStrategy):
         options[crypto.CREATE_WITH_PYOPENSSL] = f'Use OpenSSL library (Available: {"yes" if crypto.UTILS_OPENSSL_AVAILABLE else "no"}, DEPRECATED)'
         options[crypto.CREATE_WITH_OPENSSL]   = f'Execute OpenSSL command'
         
-        wizard = kodi.WizardDialog_DictionarySelection(wizard, 'selected_connection', 
-            'Select configured connection', self._wizard_get_available_connections())
+        wizard = kodi.WizardDialog_DictionarySelection(wizard, 'selected_connection',
+                                                       'Select configured connection', 
+                                                       self._wizard_get_available_connections())
         
         wizard = kodi.WizardDialog_Dummy(wizard, 'pincode', None, self._wizard_generate_pair_pincode)
         # If selected to create a new connection
@@ -143,7 +146,7 @@ class NvidiaStreamScanner(RomScannerStrategy):
             pair_fail_txt, None, self._wizard_is_not_paired)
        
         return wizard
-      
+            
     def _configure_post_wizard_hook(self):
         if self.scanner_settings["selected_connection"] == "NONE":
             gs = self._get_gamestream_server_from_scanner_settings(self.scanner_settings)
@@ -173,15 +176,15 @@ class NvidiaStreamScanner(RomScannerStrategy):
     
     # wizard slide conditions
     def _wizard_wants_to_create_certificate(self, item_key, properties) -> bool:
-        if not 'cert_action' in properties:
+        if 'cert_action' not in properties:
             return False
         return properties['cert_action'] in [
-            crypto.CREATE_WITH_CRYPTOLIB, 
-            crypto.CREATE_WITH_PYOPENSSL, 
+            crypto.CREATE_WITH_CRYPTOLIB,
+            crypto.CREATE_WITH_PYOPENSSL,
             crypto.CREATE_WITH_OPENSSL]
 
-    def _wizard_wants_to_import_certificate(self, item_key, properties)  -> bool:
-        if not 'cert_action' in properties:
+    def _wizard_wants_to_import_certificate(self, item_key, properties) -> bool:
+        if 'cert_action' not in properties:
             return False
         return not self._wizard_wants_to_create_certificate(item_key, properties)
 
@@ -195,7 +198,7 @@ class NvidiaStreamScanner(RomScannerStrategy):
 
     def _wizard_creating_new_connection(self, item_key, properties) -> bool:
         return properties["selected_connection"] == "NONE"
-
+    
     # after wizard slide actions
     def _wizard_generate_pair_pincode(self, input, item_key, properties):
         gs = self._get_gamestream_server_from_scanner_settings(properties)
@@ -224,14 +227,14 @@ class NvidiaStreamScanner(RomScannerStrategy):
             cert_path.getPath(),
             cert_key_path.getPath()
         ]
-        gs = self._get_gamestream_server_from_scanner_settings(properties) 
+        gs = self._get_gamestream_server_from_scanner_settings(properties)
         if not gs.create_certificates(properties['cert_action']):
             kodi.notify_error("Failed to create certificates for pairing with Gamestream PC")
         return input
 
     def _wizard_validate_certificates(self, input, item_key, properties):
         properties[item_key] = input
-        gs = self._get_gamestream_server_from_scanner_settings(properties) 
+        gs = self._get_gamestream_server_from_scanner_settings(properties)
         if not gs.validate_certificates():
             kodi.notify_warn(
                 'Could not find certificates to validate. Make sure you already paired with '
@@ -241,17 +244,17 @@ class NvidiaStreamScanner(RomScannerStrategy):
     
     def _wizard_validate_gamestream_server_connection(self, input, item_key, properties):
         properties[item_key] = input
-        gs = self._get_gamestream_server_from_scanner_settings(properties) 
+        gs = self._get_gamestream_server_from_scanner_settings(properties)
         if not gs.connect():
             kodi.notify_warn('Could not connect to gamestream server')
             return input
 
-        properties['server_id'] = 1 # not yet known what the origin is
+        properties['server_id'] = 1  # not yet known what the origin is
         properties['server_uuid'] = gs.get_uniqueid()
         properties['server_name'] = gs.get_hostname()
         properties['unique_id'] = gs.get_client_id()
 
-        if not "connection_name" in properties or not properties['connection_name']:  
+        if "connection_name" not in properties or not properties['connection_name']:
             properties['connection_name'] = gs.get_hostname()
         
         server_uuid = properties['server_uuid']
@@ -272,16 +275,16 @@ class NvidiaStreamScanner(RomScannerStrategy):
         for file, name in connection_files.items():
             options[file] = name
         return options
-
+        
     # Edit settings
     def _configure_get_edit_options(self) -> dict:
         options = collections.OrderedDict()
-        options[self._change_name]          = f"Change connection name: '{self.scanner_settings['name']}'"
-        options[self._change_server_host]   = f"Change host: '{self.scanner_settings['host']}'"
-        options[self._change_client_uid]    = f"Change client ID: '{self.scanner_settings['unique_id']}'"
-        options[self._change_certificates]  = f"Change certificates"
-        options[self._update_server_info]   = "Update server info"
-        
+        options[self._change_name] = f"Change connection name: '{self.scanner_settings['name']}'"
+        options[self._change_server_host] = f"Change host: '{self.scanner_settings['host']}'"
+        options[self._change_client_uid] = f"Change client ID: '{self.scanner_settings['unique_id']}'"
+        options[self._change_certificates] = "Change certificates"
+        options[self._update_server_info] = "Update server info"
+                
         return options
     
     def _change_name(self):
@@ -295,17 +298,16 @@ class NvidiaStreamScanner(RomScannerStrategy):
         if server_host is None:
             return
         self.scanner_settings['host'] = server_host
-    
+        
     def _change_client_uid(self):
         uid = kodi.dialog_numeric('Edit Client ID', self.scanner_settings["unique_id"])
         if uid is None:
             return
         self.scanner_settings['unique_id'] = uid
-        
 
     def _change_certificates(self):
         dialog = kodi.ListDialog()
-        selected_idx = dialog.select("Change certificates",[
+        selected_idx = dialog.select("Change certificates", [
             f"Certificate file: {self.scanner_settings['cert_file']}",
             f"Certificate key file: {self.scanner_settings['cert_key_file']}"
         ])
@@ -324,9 +326,9 @@ class NvidiaStreamScanner(RomScannerStrategy):
             dialog_title = "Select the valid certificate key file"
             file_mask = ".key"
         
-        current_path  = self.scanner_settings[item_key]
-        selected_path = kodi.browse(type=1, mask=file_mask, text=dialog_title, 
-                                    preselected_path=current_path) 
+        current_path = self.scanner_settings[item_key]
+        selected_path = kodi.browse(type=1, mask=file_mask, text=dialog_title,
+                                    preselected_path=current_path)
 
         if selected_path is None or selected_path == current_path:
             logging.debug('Selected certificate path = NONE')
@@ -337,10 +339,11 @@ class NvidiaStreamScanner(RomScannerStrategy):
         self._change_certificates()
     
     def _update_server_info(self):
-        if not kodi.dialog_yesno('Are you sure you want to update all server info?'): 
+        if not kodi.dialog_yesno('Are you sure you want to update all server info?'):
             return
-        self._wizard_validate_gamestream_server_connection(self.scanner_settings['host']
-        , 'host', self.scanner_settings)
+        self._wizard_validate_gamestream_server_connection(self.scanner_settings['host'],
+                                                           'host',
+                                                           self.scanner_settings)
               
     def _get_gamestream_server_from_scanner_settings(self, properties):
         selected_connection = properties['selected_connection'] if 'selected_connection' in properties else None
@@ -381,7 +384,7 @@ class NvidiaStreamScanner(RomScannerStrategy):
         connected = streamServer.connect()
 
         if not connected:
-            kodi.notify_error('Unable to connect to gamestream server')
+            kodi.notify_error('Unable to connect to Gamestream server')
             return None
         
         self.progress_dialog.updateProgress(50)
@@ -395,7 +398,7 @@ class NvidiaStreamScanner(RomScannerStrategy):
         return [*(GameStreamCandidate(g) for g in games)]
     
     # --- Get dead entries -----------------------------------------------------------------
-    def _getDeadRoms(self, candidates:typing.List[ROMCandidateABC], roms: typing.List[api.ROMObj]) -> typing.List[api.ROMObj]:
+    def _getDeadRoms(self, candidates: typing.List[ROMCandidateABC], roms: typing.List[api.ROMObj]) -> typing.List[api.ROMObj]:
         dead_roms = []
         num_roms = len(roms)
         if num_roms == 0:
@@ -423,13 +426,13 @@ class NvidiaStreamScanner(RomScannerStrategy):
         return dead_roms
 
     # ~~~ Now go processing item by item ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def _processFoundItems(self, 
-                           candidates: typing.List[ROMCandidateABC], 
-                           roms:typing.List[api.ROMObj],
+    def _processFoundItems(self,
+                           candidates: typing.List[ROMCandidateABC],
+                           roms: typing.List[api.ROMObj],
                            scanner_report: report.Reporter) -> typing.List[api.ROMObj]:
 
         num_items = len(candidates)    
-        new_roms:typing.List[api.ROMObj] = []
+        new_roms: typing.List[api.ROMObj] = []
 
         self.progress_dialog.startProgress('Scanning found items', num_items)
         logger.debug('============================== Processing Gamestream Games ==============================')
@@ -440,7 +443,7 @@ class NvidiaStreamScanner(RomScannerStrategy):
 
         for candidate in sorted(candidates, key=lambda c: c.get_sort_value()):
             
-            stream_candidate:GameStreamCandidate = candidate
+            stream_candidate: GameStreamCandidate = candidate
             streamId = stream_candidate.get_game_id()
             
             logger.debug('Searching {} with #{}'.format(stream_candidate.get_name(), streamId))

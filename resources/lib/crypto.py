@@ -151,11 +151,12 @@ def create_self_signed_cert_with_pyopenssl(cert_name, cert_file_path:io.FileName
         key_file_path.close()
         return True
 
-def create_self_signed_cert_with_cryptolib(cert_name, cert_file_path:io.FileName, key_file_path:io.FileName) -> bool:
+
+def create_self_signed_cert_with_cryptolib(cert_name, cert_file_path: io.FileName, key_file_path: io.FileName) -> bool:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
     
-    now    = datetime.utcnow()
-    expire = now + timedelta(days=365*10)
+    now = datetime.utcnow()
+    expire = now + timedelta(days=365 * 10)
 
     subject = x509.Name([
         x509.NameAttribute(NameOID.COUNTRY_NAME, u"GL"),
@@ -192,17 +193,19 @@ def create_self_signed_cert_with_cryptolib(cert_name, cert_file_path:io.FileName
     key_file_path.saveStrToFile(data_str, encoding='ascii')
     return True
 
-def get_certificate_public_key(certificate_data:bytes):
+
+def get_certificate_public_key(certificate_data: bytes):
     rsa_key = RSA.importKey(certificate_data) 
     pub_key = rsa_key.publickey()
     pk_data = pub_key.exportKey()
 
     return pk_data
 
-def get_certificate_signature(certificate_data:bytes) -> bytes:
-    cert_data_str   = certificate_data.decode()
-    lines           = cert_data_str.replace(" ",'').split()
-    cert_der        = binascii.a2b_base64("".join(lines[1:-1]))
+
+def get_certificate_signature(certificate_data: bytes) -> bytes:
+    cert_data_str = certificate_data.decode()
+    lines = cert_data_str.replace(" ",'').split()
+    cert_der = binascii.a2b_base64("".join(lines[1:-1]))
 
     cert = DerSequence()
     cert.decode(cert_der)

@@ -22,6 +22,7 @@ from script_akl_nvgamestream.resources.lib import crypto
 
 logger = logging.getLogger(__name__)
 
+
 def main():
     try:
         path = sys.argv[1]
@@ -33,8 +34,10 @@ def main():
 
         created = crypto.create_self_signed_cert_with_cryptolib("NVIDIA GameStream Client", cert_file, key_file)
         
-        if created: print('Certificate files created')
-        else: print('Failed to create certificate files')
+        if created:
+            print('Certificate files created')
+        else:
+            print('Failed to create certificate files')
     except Exception as ex:
         logger.fatal('Exception in tool', exc_info=ex)
 

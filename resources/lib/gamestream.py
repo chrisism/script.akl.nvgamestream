@@ -23,6 +23,7 @@ from os.path import expanduser
 import binascii
 import uuid
 import random
+import base64
 import xml.etree.ElementTree as ET
 
 # --- AKL packages ---
@@ -45,6 +46,9 @@ class GameStreamServer(object):
     def __init__(self, connection_info: dict, debug_mode=False):
         self.name = connection_info["name"]
         self.host = connection_info["host"]
+        self.port = connection_info["port"]
+        self.username = connection_info["username"]
+        self.password = connection_info["password"]
         self.unique_id = connection_info["unique_id"]
         self.server_uuid = connection_info["server_uuid"] if "server_uuid" in connection_info else None
         self.server_name = connection_info["server_name"] if "server_name" in connection_info else None
@@ -84,8 +88,8 @@ class GameStreamServer(object):
         try:
             root = ET.fromstring(page_data)
             if self.debug_mode:
-                logging.debug(ET.tostring(root,encoding='utf8',method='xml'))
-        except:
+                logging.debug(ET.tostring(root, encoding='utf8',method='xml'))
+        except Exception:
             logging.exception('(XMLError) Cannot parse XML response')
             return None
 
@@ -96,8 +100,8 @@ class GameStreamServer(object):
             kodi.notify_warn(status_msg)
             return None
 
-        return root
-
+        return root 
+    
     def connect(self):
         logging.debug(f'Connecting to gamestream server {self.host}')
         self.server_info = self._perform_server_request("serverinfo")
@@ -334,7 +338,7 @@ class GameStreamServer(object):
 
         return True
 
-    def getApps(self):
+    def get_apps(self):
         apps_response = self._perform_server_request('applist', True)
         if apps_response is None:
             kodi.notify_error('Failure to connect to GameStream server')

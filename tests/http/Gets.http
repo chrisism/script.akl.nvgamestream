@@ -1,0 +1,11 @@
+### Get Apps
+GET {{baseurl}}/api/apps HTTP/1.1
+Authorization: Basic {{username}}:{{password}}
+
+### Get config
+GET {{baseurl}}/api/config HTTP/1.1
+Authorization: Basic {{username}}:{{password}}
+
+### Get config
+GET {{baseurl}}/api/clients/list HTTP/1.1
+Authorization: Basic {{username}}:{{password}}
