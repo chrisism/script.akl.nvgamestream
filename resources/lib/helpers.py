@@ -8,8 +8,8 @@ from akl.utils import kodi
 
 
 class WizardDialog_FileBrowseMultiple(kodi.WizardDialog):
-    def __init__(self, decoratorDialog, property_key, title, browseType, filter, shares = 'files',
-                 customFunction = None, conditionalFunction = None):
+    def __init__(self, decoratorDialog, property_key, title, browseType, filter, shares='files',
+                 customFunction=None, conditionalFunction=None):
         self.browseType = browseType
         self.filter = filter
         self.shares = shares
@@ -24,7 +24,7 @@ class WizardDialog_FileBrowseMultiple(kodi.WizardDialog):
         if callable(self.filter):
             self.filter = self.filter(self.property_key, properties)
         output = xbmcgui.Dialog().browseMultiple(self.browseType, self.title, self.shares, 
-            self.filter, False, False, originalPath)
+                                                 self.filter, False, False, originalPath)
 
         if not output:
             self._cancel()

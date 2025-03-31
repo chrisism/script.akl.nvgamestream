@@ -20,6 +20,7 @@ from __future__ import division
 import logging
 import hashlib
 import binascii
+import json
 from datetime import timedelta
 from datetime import datetime
 
@@ -33,13 +34,13 @@ try:
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.backends import default_backend
     UTILS_CRYPTOGRAPHY_AVAILABLE = True
-except:
+except Exception:
     UTILS_CRYPTOGRAPHY_AVAILABLE = False
 
 try:
-    from OpenSSL import crypto, SSL
+    from OpenSSL import crypto
     UTILS_OPENSSL_AVAILABLE = True
-except:
+except Exception:
     UTILS_OPENSSL_AVAILABLE = False
 
 try:
@@ -50,19 +51,21 @@ try:
     from Cryptodome.Random import get_random_bytes
     from Cryptodome.Util.asn1 import DerSequence
     UTILS_PYCRYPTO_AVAILABLE = True
-except:
+except Exception:
     UTILS_PYCRYPTO_AVAILABLE = False
 
 # --- AKL packages ---
-from akl.utils import io, kodi
-from akl.executors import WindowsExecutor, LinuxExecutor, OSXExecutor, AndroidExecutor
+from akl.utils import io, kodi, net
+from akl.executors import WindowsExecutor, LinuxExecutor, OSXExecutor
 
 logger = logging.getLogger(__name__)
 
-CREATE_WITH_DOME      = 'PYCRYPTODOME'
+CREATE_WITH_DOME = 'PYCRYPTODOME'
 CREATE_WITH_CRYPTOLIB = 'CRYPTO'
 CREATE_WITH_PYOPENSSL = 'PYSSL'
-CREATE_WITH_OPENSSL   = 'OPENSSL'
+CREATE_WITH_OPENSSL = 'OPENSSL'
+CREATE_WITH_ONLINE = 'ONLINE'
+
 
 # #################################################################################################
 # #################################################################################################
@@ -76,7 +79,7 @@ CREATE_WITH_OPENSSL   = 'OPENSSL'
 # cert_file_path: the path to the .crt file of this certificate
 # key_file_paht: the path to the .key file of this certificate
 #
-def create_self_signed_cert(cert_name, cert_file_path:io.FileName, key_file_path:io.FileName, create_type=CREATE_WITH_OPENSSL) -> bool:
+def create_self_signed_cert(cert_name, cert_file_path: io.FileName, key_file_path: io.FileName, create_type=CREATE_WITH_OPENSSL) -> bool:
     if create_type == CREATE_WITH_DOME:
         return create_self_signed_cert_with_cryptodome(cert_name, cert_file_path, key_file_path)
     if create_type == CREATE_WITH_CRYPTOLIB:
@@ -85,9 +88,100 @@ def create_self_signed_cert(cert_name, cert_file_path:io.FileName, key_file_path
         return create_self_signed_cert_with_pyopenssl(cert_name, cert_file_path, key_file_path)
     if create_type == CREATE_WITH_OPENSSL:
         return create_self_signed_cert_with_openssl(cert_name, cert_file_path, key_file_path)
+    if create_type == CREATE_WITH_ONLINE:
+        return create_self_signed_cert_with_online_tool(cert_name, cert_file_path, key_file_path)
     return False
 
-def create_self_signed_cert_with_cryptodome(cert_name, cert_file_path:io.FileName, key_file_path:io.FileName) -> bool:
+
+def create_self_signed_cert_with_online_tool(cert_name, cert_file_path: io.FileName, key_file_path: io.FileName) -> bool:
+    # Private key data
+    url = 'https://certificatetools.com/api/openssl/generateRSAPrivateKey'
+    response, http_code = net.post_JSON_URL(url, json_obj={
+        "format": "PKCS8",
+        "rsa_keygen_bits": "2048"
+    })
+    if http_code != 200:
+        logger.error(f'Failed to create private key: HTTP {http_code}')
+        logger.debug(f'Response: {response}')
+        return False
+    
+    result_obj = json.loads(response)
+    private_key_data = result_obj["key"]
+    
+    # CSR
+    url = 'https://certificatetools.com/api/openssl/generateCSR'
+    response, http_code = net.post_URL(url, data={
+        "key": private_key_data,
+        "keypass": False,
+        "sign": "selfsign",
+        "options": {
+            "hash": "sha1",
+            "extensions": {
+                "keyUsage": {
+                    "usages": ["digitalSignature"],
+                    "critical": False
+                },
+                "extendedKeyUsage": {
+                    "usages": ["clientAuth"],
+                    "critical": False
+                }
+            },
+            "subject": {
+                "countryName": "GL",
+                "stateOrProvinceName": "GL",
+                "localityName": "Kodi"
+            }
+        }
+    })
+    if http_code != 200:
+        logger.error(f'Failed to create private key: HTTP {http_code}')
+        logger.debug(f'Response: {response}')
+        return False
+    
+    result_obj = json.loads(response)
+    csr = result_obj["csr"]
+    
+    # Self signed certificate
+    url = 'https://certificatetools.com/api/openssl/selfSignCSR'
+    response, http_code = net.post_URL(url, data={
+        "csr": csr,
+        "key": private_key_data,
+        "keypass": False,
+        "sign": "selfsign",
+        "options": {
+            "hash": "sha1",
+            "days": 10 * 365,
+            "extensions": {
+                "keyUsage": {
+                    "usages": ["digitalSignature"],
+                    "critical": False
+                },
+                "extendedKeyUsage": {
+                    "usages": ["clientAuth"],
+                    "critical": False
+                }
+            },
+            "subject": {
+                "countryName": "GL",
+                "stateOrProvinceName": "GL",
+                "localityName": "Kodi"
+            }
+        }
+    })
+    if http_code != 200:
+        logger.error(f'Failed to create private key: HTTP {http_code}')
+        logger.debug(f'Response: {response}')
+        return False
+    
+    result_obj = json.loads(response)
+    crt = result_obj["crt"]
+    
+    cert_file_path.saveStrToFile(crt, encoding='ascii')
+    key_file_path.saveStrToFile(private_key_data, encoding='ascii')
+    return True
+
+
+def create_self_signed_cert_with_cryptodome(cert_name, cert_file_path: io.FileName, key_file_path: io.FileName) -> bool:
     rsakey = RSA.generate(2048)
     public_key = rsakey.public_key()
 
@@ -98,21 +192,27 @@ def create_self_signed_cert_with_cryptodome(cert_name, cert_file_path:io.FileNam
     private_key_data = rsakey.export_key()
     key_file_path.saveStrToFile(private_key_data, encoding='ascii')
     return True
+ 
     
-def create_self_signed_cert_with_openssl(cert_name, cert_file_path:io.FileName, key_file_path:io.FileName) -> bool:
+def create_self_signed_cert_with_openssl(cert_name, cert_file_path: io.FileName, key_file_path: io.FileName) -> bool:
     executor = None
     
     logFile = kodi.getAddonDir().pjoin(f'create_cert_{datetime.now().timestamp()}.txt')
     logFile = io.FileName(logFile.getPathTranslated())
     logFile.makedirs()
 
-    if io.is_windows(): executor = WindowsExecutor(logFile, False, False)
-    elif io.is_android(): executor = LinuxExecutor(logFile, False)#AndroidExecutor()
-    elif io.is_linux(): executor = LinuxExecutor(logFile, False)
-    elif io.is_osx(): executor = OSXExecutor(logFile)
-    else: return False
+    if io.is_windows():
+        executor = WindowsExecutor(logFile, False, False)
+    elif io.is_android():
+        executor = LinuxExecutor(logFile, False)  # AndroidExecutor()
+    elif io.is_linux():
+        executor = LinuxExecutor(logFile, False)
+    elif io.is_osx():
+        executor = OSXExecutor(logFile)
+    else:
+        return False
     
-    args =  "req -x509 -newkey rsa:2048 -nodes "
+    args = "req -x509 -newkey rsa:2048 -nodes "
     args += f"-keyout {key_file_path.getPathTranslated()} "
     args += f"-out {cert_file_path.getPathTranslated()} -sha1 -days 3650 "
     args += f'-subj "/C=GL/ST=GL/L=KODI/O=AKL/OU=AKL/CN={cert_name}"'
@@ -120,36 +220,37 @@ def create_self_signed_cert_with_openssl(cert_name, cert_file_path:io.FileName, 
     executor.execute('openssl', args, True)
 
     return cert_file_path.exists()
+
     
-def create_self_signed_cert_with_pyopenssl(cert_name, cert_file_path:io.FileName, key_file_path:io.FileName) -> bool:
-        # create a key pair    
-        key = crypto.PKey()
-        key.generate_key(crypto.TYPE_RSA, 2048)
+def create_self_signed_cert_with_pyopenssl(cert_name, cert_file_path: io.FileName, key_file_path: io.FileName) -> bool:
+    # create a key pair
+    key = crypto.PKey()
+    key.generate_key(crypto.TYPE_RSA, 2048)
 
-        # create a self-signed cert
-        cert = crypto.X509()
-        cert.get_subject().C = "GL"
-        cert.get_subject().ST = "GL"
-        cert.get_subject().L = "KODI"
-        cert.get_subject().O = "AKL"
-        cert.get_subject().OU = "AKL"
-        cert.get_subject().CN = cert_name
-        cert.gmtime_adj_notBefore(0)
-        cert.gmtime_adj_notAfter(10*365*24*60*60)
-        cert.set_issuer(cert.get_subject())
-        cert.set_pubkey(key)
-        cert.sign(key, 'sha1')
+    # create a self-signed cert
+    cert = crypto.X509()
+    cert.get_subject().C = "GL"
+    cert.get_subject().ST = "GL"
+    cert.get_subject().L = "KODI"
+    cert.get_subject().O = "AKL"
+    cert.get_subject().OU = "AKL"
+    cert.get_subject().CN = cert_name
+    cert.gmtime_adj_notBefore(0)
+    cert.gmtime_adj_notAfter(10 * 365 * 24 * 60 * 60)
+    cert.set_issuer(cert.get_subject())
+    cert.set_pubkey(key)
+    cert.sign(key, 'sha1')
 
-        cert_data = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-        cert_file_path.open('wb')
-        cert_file_path.write(cert_data)
-        cert_file_path.close()
+    cert_data = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
+    cert_file_path.open('wb')
+    cert_file_path.write(cert_data)
+    cert_file_path.close()
 
-        key_data  = crypto.dump_certificate(crypto.FILETYPE_PEM, key)
-        key_file_path.open('wb')
-        key_file_path.write(key_data)
-        key_file_path.close()
-        return True
+    key_data = crypto.dump_certificate(crypto.FILETYPE_PEM, key)
+    key_file_path.open('wb')
+    key_file_path.write(key_data)
+    key_file_path.close()
+    return True
 
 
 def create_self_signed_cert_with_cryptolib(cert_name, cert_file_path: io.FileName, key_file_path: io.FileName) -> bool:
@@ -172,7 +273,7 @@ def create_self_signed_cert_with_cryptolib(cert_name, cert_file_path: io.FileNam
     cert_builder = cert_builder.issuer_name(issuer)
     cert_builder = cert_builder.public_key(key.public_key())
     cert_builder = cert_builder.not_valid_before(now)
-    cert_builder = cert_builder.not_valid_after(expire) 
+    cert_builder = cert_builder.not_valid_after(expire)
     cert_builder = cert_builder.serial_number(10101010)
 
     # Sign our certificate with our private key
@@ -195,7 +296,7 @@ def create_self_signed_cert_with_cryptolib(cert_name, cert_file_path: io.FileNam
 
 
 def get_certificate_public_key(certificate_data: bytes):
-    rsa_key = RSA.importKey(certificate_data) 
+    rsa_key = RSA.importKey(certificate_data)
     pub_key = rsa_key.publickey()
     pk_data = pub_key.exportKey()
 
@@ -204,25 +305,26 @@ def get_certificate_public_key(certificate_data: bytes):
 
 def get_certificate_signature(certificate_data: bytes) -> bytes:
     cert_data_str = certificate_data.decode()
-    lines = cert_data_str.replace(" ",'').split()
+    lines = cert_data_str.replace(" ", '').split()
     cert_der = binascii.a2b_base64("".join(lines[1:-1]))
 
     cert = DerSequence()
     cert.decode(cert_der)
     tbsCertificate = DerSequence()
     tbsCertificate.decode(cert[0])
-    signature = cert[2][len(cert[2])-256:]
-    #c = x509.load_pem_x509_certificate(certificate_data, default_backend())
-    #return cert.signature
-    #signature = cert_der[len(cert_der)-256:]
+    signature = cert[2][len(cert[2]) - 256:]
+    # c = x509.load_pem_x509_certificate(certificate_data, default_backend())
+    # return cert.signature
+    # signature = cert_der[len(cert_der)-256:]
     return signature
 
-def verify_signature(data:bytes, signature:bytes, certificate_data:bytes):
+
+def verify_signature(data: bytes, signature: bytes, certificate_data: bytes):
     pk_data = get_certificate_public_key(certificate_data)
-    rsakey = RSA.importKey(pk_data) 
-    signer = PKCS1_v1_5.new(rsakey) 
+    rsakey = RSA.importKey(pk_data)
+    signer = PKCS1_v1_5.new(rsakey)
     
-    digest = SHA256.new() 
+    digest = SHA256.new()
     digest.update(data)
 
     if signer.verify(digest, signature):
@@ -230,21 +332,23 @@ def verify_signature(data:bytes, signature:bytes, certificate_data:bytes):
 
     return False
 
+
 def sign_data(data, key_certificate):
-    rsakey = RSA.importKey(key_certificate) 
-    signer = PKCS1_v1_5.new(rsakey) 
-    digest = SHA256.new() 
+    rsakey = RSA.importKey(key_certificate)
+    signer = PKCS1_v1_5.new(rsakey)
+    digest = SHA256.new()
         
-    digest.update(data) 
+    digest.update(data)
     sign = signer.sign(digest) 
 
     return sign
 
+
 def randomBytes(size):
     try:
         return get_random_bytes(size)
-    except:
-        logger.exception(f"Failure generating random bytes")
+    except Exception:
+        logger.exception("Failure generating random bytes")
     
     return urandom(size)
 
@@ -263,7 +367,7 @@ class HashAlgorithm(object):
         else:
             return hashlib.sha1()
 
-    def hash(self, value:bytes):
+    def hash(self, value: bytes):
         algorithm = self._algorithm()
         algorithm.update(value)
         hashedValue = algorithm.digest()
@@ -276,23 +380,25 @@ class HashAlgorithm(object):
     def digest_size(self):
         return self.hashLength
 
+
 # Block size in bytes.
 BLOCK_SIZE = 16
 
+
 class AESCipher(object):
 
-    def __init__(self, key:bytes, hashAlgorithm:HashAlgorithm):
+    def __init__(self, key: bytes, hashAlgorithm: HashAlgorithm):
         keyHashed = hashAlgorithm.hash(key)
         truncatedKeyHashed = keyHashed[:16]
 
         self.key = truncatedKeyHashed
 
-    def encrypt(self, raw:bytes):
+    def encrypt(self, raw: bytes):
         cipher = AES.new(self.key, AES.MODE_ECB)
         encrypted = cipher.encrypt(raw)
         return encrypted
 
-    def encryptToHex(self, raw:bytes):
+    def encryptToHex(self, raw: bytes):
         encrypted = self.encrypt(raw)
         return binascii.hexlify(encrypted)
 

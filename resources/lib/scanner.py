@@ -91,7 +91,15 @@ class NvidiaStreamScanner(RomScannerStrategy):
         logging.debug(f'Has Crypto: "{crypto.UTILS_CRYPTOGRAPHY_AVAILABLE}"')
         logging.debug(f'Has PyCrypto: "{crypto.UTILS_PYCRYPTO_AVAILABLE}"')
         logging.debug(f'Has OpenSSL: "{crypto.UTILS_OPENSSL_AVAILABLE}"')
-     
+        
+        ##########################################################
+        # Wizard steps
+
+        wizard = kodi.WizardDialog_DictionarySelection(wizard, 'selected_connection',
+                                                       'Select configured connection',
+                                                       self._wizard_get_available_connections())
+        wizard = kodi.WizardDialog_Dummy(wizard, 'pincode', None, self._wizard_generate_pair_pincode)
+        
         info_txt = ('To pair with your Gamestream Computer we need to make use of valid certificates.\n'
                     'Depending on OS and libraries we might not be able to create certificates directly from within Kodi. '
                     'You can always create them manually with external tools/websites.\n'
@@ -99,51 +107,57 @@ class NvidiaStreamScanner(RomScannerStrategy):
 
         options = {}
         options['IMPORT'] = 'Import existing (or create manually)'
-        options[crypto.CREATE_WITH_CRYPTOLIB] = f'Use cryptography library (Available: {"yes" if crypto.UTILS_CRYPTOGRAPHY_AVAILABLE else "no"})'
-        options[crypto.CREATE_WITH_PYOPENSSL] = f'Use OpenSSL library (Available: {"yes" if crypto.UTILS_OPENSSL_AVAILABLE else "no"}, DEPRECATED)'
-        options[crypto.CREATE_WITH_OPENSSL]   = f'Execute OpenSSL command'
+        options[crypto.CREATE_WITH_ONLINE] = 'Create and import from online (CertificateTools.com)'
+        if crypto.UTILS_CRYPTOGRAPHY_AVAILABLE:
+            options[crypto.CREATE_WITH_CRYPTOLIB] = 'Create certificates using cryptography library'
+        if crypto.UTILS_OPENSSL_AVAILABLE:
+            options[crypto.CREATE_WITH_PYOPENSSL] = 'Create using OpenSSL library (DEPRECATED)'
+        options[crypto.CREATE_WITH_OPENSSL] = 'Execute OpenSSL command'
         
-        wizard = kodi.WizardDialog_DictionarySelection(wizard, 'selected_connection',
-                                                       'Select configured connection', 
-                                                       self._wizard_get_available_connections())
-        
-        wizard = kodi.WizardDialog_Dummy(wizard, 'pincode', None, self._wizard_generate_pair_pincode)
         # If selected to create a new connection
         wizard = kodi.WizardDialog_Dummy(wizard, 'unique_id', None, 
-            self._wizard_generate_connection_uid, self._wizard_creating_new_connection)
-            
+                                         self._wizard_generate_connection_uid,
+                                         self._wizard_creating_new_connection)
         wizard = kodi.WizardDialog_Input(wizard, 'host', 'Gamestream Server',
-            xbmcgui.INPUT_IPADDRESS, self._wizard_validate_gamestream_server_connection, 
-            self._wizard_creating_new_connection)
-        wizard = kodi.WizardDialog_Keyboard(wizard, 'connection_name', 'Connection name', 
-            None, self._wizard_creating_new_connection)
-        wizard = kodi.WizardDialog_Input(wizard, 'unique_id', 'Client Unique ID', 
-            1, None, self._wizard_creating_new_connection)
+                                         xbmcgui.INPUT_IPADDRESS,
+                                         self._wizard_validate_gamestream_server_connection,
+                                         self._wizard_creating_new_connection)
+        wizard = kodi.WizardDialog_Keyboard(wizard, 'connection_name', 'Connection name',
+                                            None, self._wizard_creating_new_connection)
+        wizard = kodi.WizardDialog_Input(wizard, 'unique_id', 'Client Unique ID',
+                                         1, None, self._wizard_creating_new_connection)
         wizard = kodi.WizardDialog_FormattedMessage(wizard, 'dummy', 'Pairing with Gamestream PC',
-            info_txt, None, self._wizard_creating_new_connection)       
+                                                    info_txt, None, self._wizard_creating_new_connection)
+          
         wizard = kodi.WizardDialog_DictionarySelection(wizard, 'cert_action', 'How to apply certificates',
-            options, None, self._wizard_creating_new_connection)
-        wizard = kodi.WizardDialog_FileBrowse(wizard, 'certificates_paths', 'Select location to store certificates', 
-            0, '', 'files', self._wizard_create_certificates, self._wizard_wants_to_create_certificate) 
-        wizard = helpers.WizardDialog_FileBrowseMultiple(wizard, 'certificates_paths', 'Select certificate files', 
-            1, '', 'files', self._wizard_validate_certificates, self._wizard_wants_to_import_certificate) 
-
-        # if needed to be paired  
-        pair_txt =  'We are going to connect with the Gamestream PC.\n'
+                                                       options, None, self._wizard_creating_new_connection)
+        # Create new certificates
+        wizard = kodi.WizardDialog_FileBrowse(wizard, 'certificates_paths', 'Select location to store certificates',
+                                              0, '', 'files', self._wizard_create_certificates,
+                                              self._wizard_wants_to_create_certificate)
+        # Get existing certificates
+        wizard = helpers.WizardDialog_FileBrowseMultiple(wizard, 'certificates_paths', 'Select certificate files',
+                                                         1, '', 'files', self._wizard_validate_certificates,
+                                                         self._wizard_wants_to_import_certificate)
+        # Generate certs Cryptolib
+        
+        # if needed to be paired
+        pair_txt = 'We are going to connect with the Gamestream PC.\n'
         pair_txt += 'On your Gamestream PC, once requested, insert the following PIN code: [B]{}[/B].\n'
         pair_txt += 'Press OK to start pairing process.'
-        wizard = kodi.WizardDialog_FormattedMessage(wizard, 'pincode', 'Pairing with Gamestream PC',        
-            pair_txt, self._wizard_start_pairing_with_server, self._wizard_is_not_paired)
+        wizard = kodi.WizardDialog_FormattedMessage(wizard, 'pincode', 'Pairing with Gamestream PC',
+                                                    pair_txt, self._wizard_start_pairing_with_server,
+                                                    self._wizard_is_not_paired)
         
-        pair_success_txt =  'Plugin is successfully paired with the Gamestream PC.\n'
+        pair_success_txt = 'Plugin is successfully paired with the Gamestream PC.\n'
         pair_success_txt += 'You now can scan/launch games with this connection.'
         wizard = kodi.WizardDialog_FormattedMessage(wizard, 'ispaired', 'Pairing with Gamestream PC',
-            pair_success_txt, None, self._wizard_is_paired)
+                                                    pair_success_txt, None, self._wizard_is_paired)
 
-        pair_fail_txt =  'Unfortunately we were not able to pair with the Gamestream PC.\n'
+        pair_fail_txt = 'Unfortunately we were not able to pair with the Gamestream PC.\n'
         pair_fail_txt += 'Inspect the logs for more details.'
         wizard = kodi.WizardDialog_FormattedMessage(wizard, 'ispaired', 'Pairing with Gamestream PC',
-            pair_fail_txt, None, self._wizard_is_not_paired)
+                                                    pair_fail_txt, None, self._wizard_is_not_paired)
        
         return wizard
             
@@ -181,13 +195,14 @@ class NvidiaStreamScanner(RomScannerStrategy):
         return properties['cert_action'] in [
             crypto.CREATE_WITH_CRYPTOLIB,
             crypto.CREATE_WITH_PYOPENSSL,
-            crypto.CREATE_WITH_OPENSSL]
+            crypto.CREATE_WITH_OPENSSL,
+            crypto.CREATE_WITH_ONLINE]
 
     def _wizard_wants_to_import_certificate(self, item_key, properties) -> bool:
         if 'cert_action' not in properties:
             return False
         return not self._wizard_wants_to_create_certificate(item_key, properties)
-
+    
     def _wizard_is_paired(self, item_key, properties) -> bool:
         server = self._get_gamestream_server_from_scanner_settings(properties)
         server.connect()
@@ -246,8 +261,8 @@ class NvidiaStreamScanner(RomScannerStrategy):
         properties[item_key] = input
         gs = self._get_gamestream_server_from_scanner_settings(properties)
         if not gs.connect():
-            kodi.notify_warn('Could not connect to gamestream server')
             return input
+            kodi.notify_warn('Could not connect to gamestream server')
 
         properties['server_id'] = 1  # not yet known what the origin is
         properties['server_uuid'] = gs.get_uniqueid()
@@ -388,7 +403,7 @@ class NvidiaStreamScanner(RomScannerStrategy):
             return None
         
         self.progress_dialog.updateProgress(50)
-        games = streamServer.getApps()
+        games = streamServer.get_apps()
         
         self.progress_dialog.updateProgress(80)
         num_games = len(games)

@@ -101,7 +101,7 @@ class Test_gamestream(unittest.TestCase):
         expected = 18
 
         # act
-        actual = server.getApps()
+        actual = server.get_apps()
 
         for app in actual:
             print('----------')

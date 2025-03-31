@@ -19,11 +19,9 @@ from __future__ import division
 
 import logging
 
-from os.path import expanduser
 import binascii
 import uuid
 import random
-import base64
 import xml.etree.ElementTree as ET
 
 # --- AKL packages ---
@@ -46,9 +44,6 @@ class GameStreamServer(object):
     def __init__(self, connection_info: dict, debug_mode=False):
         self.name = connection_info["name"]
         self.host = connection_info["host"]
-        self.port = connection_info["port"]
-        self.username = connection_info["username"]
-        self.password = connection_info["password"]
         self.unique_id = connection_info["unique_id"]
         self.server_uuid = connection_info["server_uuid"] if "server_uuid" in connection_info else None
         self.server_name = connection_info["server_name"] if "server_name" in connection_info else None
@@ -83,12 +78,12 @@ class GameStreamServer(object):
             page_data, http_code = net.get_URL(url, verify_ssl=False)
         
         if http_code != 200 or page_data is None:
-            return None   
+            return None
             
         try:
             root = ET.fromstring(page_data)
             if self.debug_mode:
-                logging.debug(ET.tostring(root, encoding='utf8',method='xml'))
+                logging.debug(ET.tostring(root, encoding='utf8', method='xml'))
         except Exception:
             logging.exception('(XMLError) Cannot parse XML response')
             return None
@@ -100,7 +95,7 @@ class GameStreamServer(object):
             kodi.notify_warn(status_msg)
             return None
 
-        return root 
+        return root
     
     def connect(self):
         logging.debug(f'Connecting to gamestream server {self.host}')
@@ -185,7 +180,7 @@ class GameStreamServer(object):
         # Create an AES key from them
         aes_cypher = crypto.AESCipher(saltAndPin, hashAlgorithm)
 
-        if progress_dialog: 
+        if progress_dialog:
             progress_dialog.updateProgress(50, f"Insert pincode [B]{pincode}[/B] on your Gamestream PC")
 
         # get certificates ready
@@ -202,7 +197,7 @@ class GameStreamServer(object):
             'phrase': 'getservercert',
             'salt': binascii.hexlify(salt).decode('utf-8'),
             'clientcert': binascii.hexlify(client_certificate).decode('utf-8')
-            })
+        })
 
         if pairing_result is None:
             logging.error('Failed to pair with server. No XML received.')
@@ -228,9 +223,9 @@ class GameStreamServer(object):
         # Send the encrypted challenge to the server
         logging.debug('Sending encrypted challenge to the server')
         pairing_challenge_result = self._perform_server_request('pair', False, {
-            'devicename': 'akl', 
-            'updateState': 1, 
-            'clientchallenge': encrypted_challenge.decode('utf-8') })
+            'devicename': 'akl',
+            'updateState': 1,
+            'clientchallenge': encrypted_challenge.decode('utf-8')})
         
         if pairing_challenge_result is None:
             logging.error('Failed to pair with server. No XML received.')
@@ -249,9 +244,9 @@ class GameStreamServer(object):
         server_challenge_decrypted = aes_cypher.decrypt(server_challenge_bytes)
         
         server_challenge_firstbytes = server_challenge_decrypted[:hashAlgorithm.digest_size()]
-        server_challenge_lastbytes = server_challenge_decrypted[hashAlgorithm.digest_size():hashAlgorithm.digest_size()+16]
+        server_challenge_lastbytes = server_challenge_decrypted[hashAlgorithm.digest_size():hashAlgorithm.digest_size() + 16]
 
-        # Using another 16 bytes secret, compute a challenge response hash using the secret, 
+        # Using another 16 bytes secret, compute a challenge response hash using the secret
         client_secret = crypto.randomBytes(16)
         # our cert sig, and the challenge
         challenge_response = server_challenge_lastbytes + certificate_signature + client_secret
@@ -265,7 +260,7 @@ class GameStreamServer(object):
             'updateState': 1,
             'serverchallengeresp': challenge_response_encrypted.decode('utf-8')})
         
-        if progress_dialog: 
+        if progress_dialog:
             progress_dialog.updateProgress(90, "Validating paired connection Gamestream PC")
 
         if pairing_secret_response is None:
@@ -463,9 +458,14 @@ class GameStreamServer(object):
 
     @staticmethod
     def get_connection_info_files() -> dict:
-        addon_data_dir = kodi.getAddonDir()
-        files = addon_data_dir.scanFilesInPath("*.conf")
         conf_files = {}
+        addon_data_dir = kodi.getAddonDir()
+        
+        if not addon_data_dir.exists():
+            logging.warning(f"Addon data directory {addon_data_dir.getPath()} does not exist.")
+            return conf_files
+        
+        files = addon_data_dir.scanFilesInPath("*.conf")
         for file in files:
             conf_name = file.readJson()["name"]
             conf_files[file.getPath()] = conf_name

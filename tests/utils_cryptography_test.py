@@ -160,5 +160,20 @@ class Test_cryptography_test(unittest.TestCase):
 
         # arrange
 
+    def test_create_self_signed_cert_with_online_tool(self):
+        # arrange
+        output_dir = io.FileName(self.TEST_OUTPUT_DIR, isdir=True)
+        cert_name = "NVIDIA GameStream Client"
+        cert_file_path = output_dir.pjoin('nvidia_09.crt')
+        key_file_path = output_dir.pjoin('nvidia_09.key')
+        
+        # act
+        target.create_self_signed_cert(cert_name, cert_file_path, key_file_path, 
+            create_type=target.CREATE_WITH_ONLINE)
+        
+        # assert
+        assert cert_file_path.exists()
+        assert key_file_path.exists()
+
 if __name__ == '__main__':
     unittest.main()
